@@ -1,0 +1,24 @@
+{
+  "name": "aave-v3-yield-sim",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^24.8.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "graphql": "^16.11.0",
+    "graphql-request": "^7.3.0"
+  }
+}
