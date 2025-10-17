@@ -68,7 +68,7 @@ Each CSV file contains the following columns:
 | Exact Yield Earned | Precise amount of yield earned over the inactive period |
 | Yield % | Percentage yield earned |
 | Years Inactive | How many years the position has been inactive |
-| Historical Date | Date of the user's last activity |
+| Last Interaction | Date of the user's last activity |
 
 ## How It Works
 

@@ -6,7 +6,7 @@ import type { DeadLiquidityUser, DeadLiquidityResponse, ProcessedUser, Historica
 const checkNoOpenBorrowsAtCutoff = (userData: DeadLiquidityUser['user'], cutoff: number): boolean => {
   // Get all borrows and repays before cutoff, grouped by asset
   const borrowsByAsset = new Map<string, { borrows: number; repays: number }>();
-  
+
   // Process historical borrows
   for (const borrow of userData.historicalBorrows) {
     const timestamp = parseInt(borrow.timestamp, 10);
@@ -18,7 +18,7 @@ const checkNoOpenBorrowsAtCutoff = (userData: DeadLiquidityUser['user'], cutoff:
       borrowsByAsset.get(asset)!.borrows += parseFloat(borrow.amount);
     }
   }
-  
+
   // Process historical repays
   for (const repay of userData.historicalRepays) {
     const timestamp = parseInt(repay.timestamp, 10);
@@ -30,7 +30,7 @@ const checkNoOpenBorrowsAtCutoff = (userData: DeadLiquidityUser['user'], cutoff:
       borrowsByAsset.get(asset)!.repays += parseFloat(repay.amount);
     }
   }
-  
+
   // Check if any asset had outstanding debt at cutoff
   for (const [asset, { borrows, repays }] of borrowsByAsset) {
     const outstandingDebt = borrows - repays;
@@ -38,7 +38,7 @@ const checkNoOpenBorrowsAtCutoff = (userData: DeadLiquidityUser['user'], cutoff:
       return false; // Had open borrows at cutoff
     }
   }
-  
+
   return true; // No open borrows at cutoff
 };
 
@@ -80,12 +80,12 @@ const fetchCurrentAndHistoricalBalances = async (
   cutoff: number
 ): Promise<Map<string, { current: bigint; historical: bigint }>> => {
   const balanceMap = new Map<string, { current: bigint; historical: bigint }>();
-  
+
   // Process in batches to avoid URL length limits
   const batchSize = 50;
   for (let i = 0; i < userReserveIds.length; i += batchSize) {
     const batch = userReserveIds.slice(i, i + batchSize);
-    
+
     try {
       const response = await request<HistoricalBalanceResponse>(
         subgraphUrl,
@@ -99,20 +99,20 @@ const fetchCurrentAndHistoricalBalances = async (
       for (const userReserve of response.userReserves) {
         const scaledBalance = BigInt(userReserve.scaledATokenBalance);
         const currentLiquidityIndex = BigInt(userReserve.reserve.liquidityIndex);
-        
+
         // Calculate current balance: scaledBalance * currentLiquidityIndex / RAY
         const RAY = BigInt("1000000000000000000000000000"); // 1e27
         const currentBalance = (scaledBalance * currentLiquidityIndex) / RAY;
-        
+
         if (userReserve.historicalBalance && userReserve.historicalBalance.length > 0) {
           const historicalRecord = userReserve.historicalBalance[0]!;
           const historicalScaledBalance = BigInt(historicalRecord.scaledATokenBalance);
           const historicalIndex = BigInt(historicalRecord.index);
-          
+
           // Calculate historical balance: historicalScaledBalance * historicalIndex / RAY
           const historicalBalance = (historicalScaledBalance * historicalIndex) / RAY;
-          
-          
+
+
           balanceMap.set(userReserve.id, {
             current: currentBalance,
             historical: historicalBalance
@@ -123,13 +123,13 @@ const fetchCurrentAndHistoricalBalances = async (
       console.error(`Error fetching balances for batch:`, error);
     }
   }
-  
+
   return balanceMap;
 };
 
 export const processUsers = async (
   subgraphUrl: string,
-  users: DeadLiquidityUser[], 
+  users: DeadLiquidityUser[],
   tokenSymbol: string,
   cutoff: number
 ): Promise<ProcessedUser[]> => {
@@ -137,14 +137,14 @@ export const processUsers = async (
 
   for (const user of users) {
     // Check if user is truly dead (no activity since cutoff)
-    const hasRecentActivity = 
+    const hasRecentActivity =
       user.user.recentSupplies.length > 0 ||
       user.user.recentWithdrawals.length > 0 ||
       user.user.recentBorrows.length > 0 ||
       user.user.recentRepays.length > 0;
 
     // Check if user has any current debt
-    const hasCurrentDebt = 
+    const hasCurrentDebt =
       user.user.reserves.length > 0 ||
       user.user.variableDebtReserves.length > 0;
 
@@ -153,10 +153,10 @@ export const processUsers = async (
 
     // Additional check: ensure their token position itself hasn't been updated recently
     const tokenPositionOld = parseInt(user.lastUpdateTimestamp, 10) < cutoff;
-    
+
     // Check if user had no open borrows at the cutoff date (2 years ago)
     const hadNoOpenBorrowsAtCutoff = checkNoOpenBorrowsAtCutoff(user.user, cutoff);
-    
+
     // Only include users who are truly dead with no debt AND had historical token supply AND old token position AND no open borrows at cutoff
     if (!hasRecentActivity && !hasCurrentDebt && hadHistoricalTokenSupply && tokenPositionOld && hadNoOpenBorrowsAtCutoff) {
       processedUsers.push({
@@ -178,10 +178,10 @@ export const processUsers = async (
   // Now fetch current and historical balances for all eligible users in batches
   const userReserveIds = processedUsers.map(user => user.userReserveId);
   const balances = await fetchCurrentAndHistoricalBalances(subgraphUrl, userReserveIds, cutoff);
-  
+
   for (const user of processedUsers) {
     const userBalances = balances.get(user.userReserveId);
-    
+
     if (userBalances && userBalances.historical > 0n) {
       // Use the ACTUAL current balance from the separate query, not the potentially outdated one
       user.currentBalance = userBalances.current;
@@ -193,7 +193,7 @@ export const processUsers = async (
   }
 
   // Filter out users without valid historical balance data and with negative yield
-  const validUsers = processedUsers.filter(user => 
+  const validUsers = processedUsers.filter(user =>
     user.historicalBalance > 0n && user.yieldEarned >= 0n
   );
 
@@ -219,20 +219,20 @@ export const generateCSV = (users: ProcessedUser[], tokenSymbol?: string, cutoff
   const cutoffDateStr = cutoffDate ? new Date(cutoffDate * 1000).toISOString().split('T')[0] : "2022-10-17";
   const headers = [
     "User Address",
-    `Current ${token} Balance`, 
+    `Current ${token} Balance`,
     `${cutoffDateStr} ${token} Balance`,
     "Exact Yield Earned",
     "Yield %",
     "Years Inactive",
-    "Historical Date"
+    "Last Interaction"
   ].join(",");
 
   // Calculate years inactive for each user
   const currentTime = Math.floor(Date.now() / 1000);
-  
+
   const rows = users.map(user => {
     const yearsInactive = ((currentTime - user.lastUpdateTimestamp) / (365 * 24 * 60 * 60)).toFixed(1);
-    
+
     return [
       user.address,
       toHuman(user.currentBalance, user.decimals),
@@ -248,17 +248,17 @@ export const generateCSV = (users: ProcessedUser[], tokenSymbol?: string, cutoff
   const totalCurrentBalance = users.reduce((sum, u) => sum + u.currentBalance, 0n);
   const totalHistoricalBalance = users.reduce((sum, u) => sum + u.historicalBalance, 0n);
   const totalYield = users.reduce((sum, u) => sum + u.yieldEarned, 0n);
-  const avgYieldPercentage = totalHistoricalBalance > 0n 
+  const avgYieldPercentage = totalHistoricalBalance > 0n
     ? Number((totalYield * 10000n) / totalHistoricalBalance) / 100
     : 0;
 
   const decimals = users[0]?.decimals || 6;
-  
+
   // Totals row
   const totalsRow = [
     `TOTALS (${users.length} users)`,
     toHuman(totalCurrentBalance, decimals),
-    toHuman(totalHistoricalBalance, decimals), 
+    toHuman(totalHistoricalBalance, decimals),
     toHuman(totalYield, decimals),
     avgYieldPercentage.toFixed(2),
     "",
